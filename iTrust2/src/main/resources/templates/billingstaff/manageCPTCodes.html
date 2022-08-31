@@ -1,0 +1,241 @@
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head th:include="layout :: head(title=~{::title},links=~{})">
+    <title>Manage CPT Codes</title>
+</head>
+
+<body th:include="layout :: body" th:with="content=~{::content}">
+    <div th:fragment="content">
+        <script th::inline="javascript">
+            /*<![CDATA[*/
+            var app = angular.module("manageCPTCodesApp", []);
+            app.controller("manageCPTCodesCtrl", function ($scope, $http) {
+                var checkValidCPTCodeForm = function (cptCode) {
+                    var err = [];
+                    if (cptCode.code < 10000 || cptCode.code > 99999) {
+                        err.push("Code must range from 10000 to 99999");
+                    }
+                    // // if (isAdd) {
+                    //     for (var i = 0; i < $scope.cptCodes.length; i++) {
+                    //         if (cptCode.code === $scope.cptCodes[i].code) {
+                    //             err.push("A CPT code with this code already exists");
+                    //         }
+                    //     }
+                    // // }
+                    if (cptCode.value <= 0) {
+                        err.push("Value must be greater than 0");
+                    }
+                    return err.join(".  ");
+                }
+
+
+                $scope.cptCodes = [];
+                $scope.loadCPTCodes = function () {
+                    $http.get("/iTrust2/api/v1/cptcodes").then(
+                        function (response) {
+                            $scope.cptCodes = response.data;
+                        }, function (rejection) {
+                            $scope.cptCodes = [];
+                            $scope.message = "Could not display CPT codes";
+                        });
+                }
+
+                $scope.addCPTCode = function () {
+                    var err = checkValidCPTCodeForm($scope.cptCode);
+                    if (err) {
+                        $scope.errorAdding = err;
+                        $scope.successMessage = "";
+                    } else {
+                        $scope.cptCode.isCurrent = true;
+                        $http.post("/iTrust2/api/v1/cptcodes", $scope.cptCode).then(
+                            function (response) {
+                                $scope.loadCPTCodes();
+                                $scope.cptCode.code = '';
+                                $scope.cptCode.description = "";
+                                $scope.cptCode.value = '';
+                                $scope.errorAdding = "";
+                                $scope.successMessage = "CPT code added successfully";
+                            }, function (rejection) {
+                                $scope.errorAdding = "Could not add CPT code.";
+                                $scope.successMessage = "";
+                            });
+                    }
+                }
+
+                $scope.removeCPTCode = function (cptCode) {
+                    $http.delete("/iTrust2/api/v1/cptcodes/" + cptCode.code).then(
+                        function (response) {
+                            $scope.loadCPTCodes();
+                            $scope.successMessage = "CPT code removed successfully";
+                            $scope.errorAdding = "";
+                        }, function (rejection) {
+                            $scope.successMessage = "";
+                            $scope.errorAdding = "Could not remove CPT code.";
+                        });
+                }
+
+                // gets the template to ng-include for a table row / item
+                $scope.selectedCPTCode = {};
+
+                $scope.getTemplate = function (cptCode) {
+                    if (cptCode.code === $scope.selectedCPTCode.code) return 'edit';
+                    else return 'view';
+                };
+
+                $scope.editCPTCode = function (cptCode) {
+                    $scope.selectedCPTCode = angular.copy(cptCode);
+                };
+
+                $scope.saveCPTCode = function () {
+                    var err = checkValidCPTCodeForm($scope.selectedCPTCode);
+                    if (err) {
+                        $scope.errorAdding = err;
+                    } else {
+                        $http.put("/iTrust2/api/v1/cptcodes", $scope.selectedCPTCode).then(
+                            function (response) {
+                                $scope.resetSelected();
+                                $scope.successMessage = "CPT code edited successfully";
+                                $scope.loadCPTCodes();
+                                console.log($scope.cptCodes);
+                            }, function (rejection) {
+                                $scope.errorAdding = "Failed to edit CPT Code";
+                            });
+                    }
+                };
+
+                $scope.resetSelected = function () {
+                    $scope.selectedCPTCode = {};
+                };
+                $scope.loadCPTCodes();
+
+                console.log($scope.cptCodes);
+            });
+            /*]]>*/
+        </script>
+
+        <div ng-app="manageCPTCodesApp" ng-controller="manageCPTCodesCtrl">
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="panel panel-primary">
+                            <div class="panel-heading">
+                                <h3>Manage CPT Codes</h3>
+                            </div>
+
+                            <div class="panel-body">
+                                <table class="table table-bordered">
+                                    <caption>Existing CPT Codes:</caption>
+                                    <thead>
+                                        <tr>
+                                            <th>CPT Code</th>
+                                            <th>Description</th>
+                                            <th>Value</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr name="cptTableRow" ng-repeat="cptCode in cptCodes"
+                                            ng-include="getTemplate(cptCode)"> </tr>
+                                    </tbody>
+                                </table>
+                                <!-- table in view mode -->
+                                <script type="text/ng-template" id="view">
+                                    <td name="cptCodeCell">{{cptCode.code}}</td>
+                                    <td name="cptDescriptionCell">{{cptCode.description}}</td>
+                                    <td name="cptValueCell">{{cptCode.value}}</td>
+
+                                    <td>
+                                        <div>
+                                            <div class="col-md-3">
+                                              <input type="button" value="Edit" class="btn btn-primary" name="editCPTCode" ng-click="editCPTCode(cptCode)" />                         
+                                            </div>
+                                            <div class="col-md-3">
+                                                <input type="button" value="Remove" class="btn btn-danger" name="removeCPTCode" ng-click="removeCPTCode(cptCode)" />                          
+                                            </div>
+                                        </div>
+                                    </td>
+                                </script>
+
+                                <!-- table in edit mode -->
+                                <script type="text/ng-template" id="edit">
+                                    <td name="editCodeCell">
+                                        <input type="number" class="form-control" ng-model="selectedCPTCode.code" />
+                                      </td>
+                                    <td name="editDescriptionCell">
+                                        <input type="text" class="form-control" ng-model="selectedCPTCode.description" />
+                                    </td>
+                                    <td name="editValueCell">
+                                        <input type="number" class="form-control" ng-model="selectedCPTCode.value" />
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <div class="col-md-3">
+                                                <input type="button" value="Save" class="btn btn-success" name="saveCPTCode" ng-click="saveCPTCode()" />                          
+                                            </div>
+                                            <div class="col-md-3">
+                                                <input type="button" value="Cancel" class="btn btn-danger" name="cancelEdit" ng-click="resetSelected()" />                            
+                                            </div>
+                                          </div>
+                                    </td>
+                                </script>
+
+                                <br>
+                                <div class="row">
+                                    <div class="col-md-12">
+                                        <div class="panel panel-default">
+                                            <div class="panel-heading ">Add a CPT Code</div>
+                                            <div class="panel-body">
+
+                                                <form class="form-horizontal" role="form" name="addCPTCodeForm"
+                                                    ng-submit="addCPTCode(addCPTCodeForm.$valid)">
+
+                                                    <div class="row">
+                                                        <div class="col-md-4">
+                                                            <label>CPT Code</label> <input type="number"
+                                                                class="form-control" placeholder="Enter a number"
+                                                                name="code" ng-model="cptCode.code" required />
+                                                        </div>
+                                                        <div class="col-md-4">
+                                                            <label>Description</label> <input type="text"
+                                                                class="form-control" placeholder="Description"
+                                                                name="description" ng-model="cptCode.description"
+                                                                required />
+                                                        </div>
+                                                        <div class="col-md-4">
+                                                            <label>Value</label>
+                                                            <input type="number" class="form-control" name="value"
+                                                                placeholder="Enter a number" ng-model="cptCode.value"
+                                                                required />
+                                                        </div>
+                                                    </div>
+                                                    <br>
+                                                    <div class="row">
+                                                        <div class="col-md-12 text-left">
+                                                            <button type="submit" class="btn btn-success"
+                                                                name="submit">Submit</button>
+                                                        </div>
+                                                    </div>
+
+                                                </form>
+
+                                                <div>
+                                                    <p style="color: red" ng-model="errorAdding" id="errP">
+                                                        {{errorAdding}}</p>
+                                                </div>
+                                                <div>
+                                                    <p style="color: green" ng-model="successMessage" id="success">
+                                                        {{successMessage}}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+
+
+                        </div>
+                    </div>
+</body>
+
+</html>
